@@ -1,0 +1,456 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  Code2, Play, Copy, Trash2, Rocket, Check, 
+  Undo2, Redo2, Download, Search, X, Wand2, ZoomIn, ZoomOut, FolderOpen 
+} from 'lucide-react';
+
+export default function App() {
+  // Template Padrão guardado apenas nos snippets agora
+  const htmlTemplate = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap');
+    body { font-family: 'Space Grotesk', sans-serif; }
+    .stars {
+      background-image: 
+        radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 40px 70px, #fff, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 50px 160px, #ddd, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 90px 40px, #fff, rgba(0,0,0,0));
+      background-repeat: repeat;
+      background-size: 200px 200px;
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-white flex flex-col items-center justify-center min-h-screen m-0 stars">
+  <div class="p-8 bg-gray-900/80 backdrop-blur-md rounded-2xl shadow-2xl text-center border border-indigo-500/30 max-w-sm w-full mx-4">
+    
+    <div class="w-16 h-16 bg-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.5)]">
+      <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+    </div>
+    
+    <h1 class="text-2xl font-bold text-indigo-400 mb-2">Sistemas Online</h1>
+    <p class="text-gray-400 text-sm mb-6">Saudações, Alferes. O console está pronto para seus comandos.</p>
+    
+    <button onclick="alert('Propulsores ativados! Rumo ao desconhecido.')" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-lg font-medium transition-all transform hover:scale-105 active:scale-95 shadow-lg">
+      Iniciar Propulsores
+    </button>
+    
+  </div>
+</body>
+</html>`;
+
+  // Banco de Dados de Snippets
+  const snippets = [
+    { name: 'Template Padrão', code: htmlTemplate },
+    { name: 'Botão de Dobra', code: `<button class="animate-pulse bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 px-8 rounded-full shadow-[0_0_20px_rgba(79,70,229,0.8)] transition-all">\n  ATIVAR DOBRA ESPACIAL\n</button>` },
+    { name: 'Card do Tripulante', code: `<div class="w-72 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-2xl">\n  <div class="h-24 bg-gradient-to-r from-indigo-500 to-purple-600"></div>\n  <div class="px-6 py-4 relative">\n    <div class="w-16 h-16 bg-slate-800 rounded-full border-4 border-slate-900 absolute -top-8 left-6 flex items-center justify-center">\n      <span class="text-2xl">👨‍🚀</span>\n    </div>\n    <h3 class="text-xl font-bold text-white mt-8">Alferes Prime</h3>\n    <p class="text-slate-400 text-sm mt-1">Explorador do Setor 7</p>\n  </div>\n</div>` }
+  ];
+
+  // Inicialização com Memória Local (LocalStorage)
+  const [code, setCode] = useState(() => localStorage.getItem('estelar-code') || '');
+  const [debouncedCode, setDebouncedCode] = useState(code); 
+  const [activeTab, setActiveTab] = useState('code'); 
+  const [copied, setCopied] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('estelar-font');
+    return saved !== null ? parseInt(saved, 10) : 14;
+  });
+  
+  const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
+  const [isSnippetsOpen, setIsSnippetsOpen] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchCurrentIndex, setSearchCurrentIndex] = useState(0);
+  
+  const textareaRef = useRef(null);
+  const preRef = useRef(null);
+  const downloadMenuRef = useRef(null);
+  const snippetsMenuRef = useRef(null);
+  const lineNumbersRef = useRef(null);
+
+  // 1. Debounce Effect: Atualiza o iFrame 500ms após parar de digitar
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedCode(code);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [code]);
+
+  // Salva as configurações e o código automaticamente na memória do navegador
+  useEffect(() => { localStorage.setItem('estelar-code', code); }, [code]);
+  useEffect(() => { localStorage.setItem('estelar-font', fontSize.toString()); }, [fontSize]);
+
+  // Sincronização de Tema com a Nave-Mãe (Portal) ou Sistema Operacional
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsDarkMode(mediaQuery.matches);
+    const handleSystemThemeChange = (e) => setIsDarkMode(e.matches);
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+
+    const handlePortalMessage = (event) => {
+      // Escuta comandos vindos de https://cronicasestelares.vercel.app
+      if (event.data && typeof event.data.theme === 'string') {
+        setIsDarkMode(event.data.theme === 'dark');
+      }
+    };
+    window.addEventListener('message', handlePortalMessage);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+      window.removeEventListener('message', handlePortalMessage);
+    };
+  }, []);
+
+  // Fechar menus ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target)) setIsDownloadMenuOpen(false);
+      if (snippetsMenuRef.current && !snippetsMenuRef.current.contains(event.target)) setIsSnippetsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleUndo = () => { textareaRef.current?.focus(); document.execCommand('undo'); };
+  const handleRedo = () => { textareaRef.current?.focus(); document.execCommand('redo'); };
+
+  const handleScroll = (e) => {
+    if (lineNumbersRef.current) lineNumbersRef.current.scrollTop = e.target.scrollTop;
+    if (preRef.current) {
+      preRef.current.scrollTop = e.target.scrollTop;
+      preRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  // 2. Auto-Formatador Mágico (Basic Indenter)
+  const handleFormat = () => {
+    let formatted = '';
+    let indentLevel = 0;
+    const lines = code.split('\n');
+    
+    formatted = lines.map(line => {
+      let trimmed = line.trim();
+      if (!trimmed) return ''; // remove linhas vazias
+      
+      // Se for fechamento de tag, diminui a indentação antes de escrever
+      if (trimmed.match(/^<\/[a-zA-Z0-9-]+>/)) {
+        indentLevel = Math.max(0, indentLevel - 1);
+      }
+      
+      const currentIndent = '  '.repeat(indentLevel);
+      let newLine = currentIndent + trimmed;
+      
+      // Se for abertura de tag (e não for auto-fechada ou tag vazia como img), aumenta pro próximo
+      if (trimmed.match(/^<[a-zA-Z0-9-]+[^>]*>$/) && !trimmed.match(/<\/[a-zA-Z0-9-]+>$/) && !trimmed.match(/\/>$/) && !trimmed.match(/^<(input|img|br|hr|meta|link)/)) {
+        indentLevel++;
+      }
+      return newLine;
+    }).filter(line => line.trim() !== '').join('\n');
+    
+    setCode(formatted);
+  };
+
+  // 3. Suporte à tecla TAB
+  const handleKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      // Insere 2 espaços no lugar da tabulação
+      const newCode = code.substring(0, start) + "  " + code.substring(end);
+      setCode(newCode);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+        }
+      }, 0);
+    }
+    if (e.key === 'Enter' && isSearchOpen) {
+      // Impede quebra de linha se o foco estiver na busca
+      if(document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        executeSearchJump(searchTerm);
+      }
+    }
+  };
+
+  const executeSearchJump = (term) => {
+    if (!term || !code) return;
+    const lowerCode = code.toLowerCase();
+    const lowerTerm = term.toLowerCase();
+    let matches = [];
+    let i = 0;
+    while ((i = lowerCode.indexOf(lowerTerm, i)) !== -1) {
+        matches.push(i);
+        i += lowerTerm.length;
+    }
+    if (matches.length > 0) {
+        let newIndex = searchCurrentIndex + 1;
+        if (newIndex >= matches.length) newIndex = 0;
+        setSearchCurrentIndex(newIndex);
+        const matchPos = matches[newIndex];
+        if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(matchPos, matchPos + term.length);
+        }
+    }
+  };
+
+  const copyToClipboard = () => {
+    try {
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      const textArea = document.createElement("textarea");
+      textArea.value = code;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const clearCode = () => setCode('');
+
+  const downloadFile = (extension) => {
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `codigo-estelar.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setIsDownloadMenuOpen(false);
+  };
+
+  const loadSnippet = (snippetCode) => {
+    setCode(snippetCode);
+    setIsSnippetsOpen(false);
+  };
+
+  const getHighlightedText = (text, isDark, search) => {
+    if (!text) return '';
+    let processedText = text;
+    
+    if (search) {
+      const safeSearchTerm = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(`(${safeSearchTerm})`, 'gi');
+      processedText = processedText.replace(searchRegex, '\uE000$1\uE001');
+    }
+
+    let highlighted = processedText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    const tagColor = isDark ? 'text-[#7ee787]' : 'text-[#116329]'; 
+    const attrColor = isDark ? 'text-[#79c0ff]' : 'text-[#0550ae]'; 
+    const stringColor = isDark ? 'text-[#a5d6ff]' : 'text-[#0a3069]'; 
+    const commentColor = isDark ? 'text-[#8b949e]' : 'text-[#6e7781]'; 
+    const bracketColor = isDark ? 'text-slate-400' : 'text-slate-500'; 
+
+    highlighted = highlighted.replace(/(&lt;!--[\s\S]*?--&gt;)/g, `<span class="${commentColor}">$1</span>`); 
+    highlighted = highlighted.replace(/(&quot;.*?&quot;|&#39;.*?&#39;|"[^"]*"|'[^']*')/g, `<span class="${stringColor}">$1</span>`); 
+    highlighted = highlighted.replace(/(&lt;\/?)([a-zA-Z0-9-]+)/g, `<span class="${bracketColor}">$1</span><span class="${tagColor}">$2</span>`); 
+    highlighted = highlighted.replace(/(&gt;)/g, `<span class="${bracketColor}">$1</span>`); 
+    highlighted = highlighted.replace(/([a-zA-Z0-9-]+)(?=\s*=)/g, `<span class="${attrColor}">$1</span>`); 
+
+    if (search) {
+      highlighted = highlighted
+        .replace(/\uE000/g, `<mark class="${isDark ? 'bg-amber-500/50 text-amber-100' : 'bg-amber-400/60 text-amber-900'} rounded-sm px-[1px] shadow-[0_0_8px_rgba(245,158,11,0.4)]">`)
+        .replace(/\uE001/g, '</mark>');
+    }
+    return highlighted;
+  };
+
+  const lineCount = code.split('\n').length;
+  const lines = Array.from({ length: Math.max(1, lineCount) }, (_, i) => i + 1);
+
+  // Estilos dinâmicos do editor (Zoom)
+  const editorTextStyle = {
+    fontSize: `${fontSize}px`,
+    lineHeight: `${fontSize * 1.5}px`
+  };
+
+  return (
+    <div className={`h-screen w-full flex flex-col font-sans transition-colors duration-300 ${isDarkMode ? 'bg-[#0d1117] text-slate-300' : 'bg-slate-50 text-slate-800'}`}>
+      
+      {/* Cabeçalho Principal (Scrollável no mobile) */}
+      <header className={`h-14 border-b flex items-center px-2 sm:px-4 transition-colors duration-300 ${isDarkMode ? 'border-slate-800 bg-[#161b22]' : 'border-slate-200 bg-white'} shrink-0 overflow-x-auto hide-scrollbar`}>
+        
+        {/* Esquerda: Edição e Busca */}
+        <div className="flex items-center gap-1">
+          <button onClick={handleUndo} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Desfazer">
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button onClick={handleRedo} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Refazer">
+            <Redo2 className="w-4 h-4" />
+          </button>
+          <button onClick={handleFormat} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-indigo-400' : 'hover:bg-slate-100 text-indigo-600'}`} title="Auto-Formatar Código">
+            <Wand2 className="w-4 h-4" />
+          </button>
+
+          {isSearchOpen ? (
+            <div className={`flex items-center px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-300'} border transition-all ml-1 w-28 sm:w-40`}>
+              <Search className="w-3 h-3 text-indigo-400 mr-2 shrink-0" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setSearchCurrentIndex(-1); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') executeSearchJump(searchTerm); }}
+                placeholder="Buscar..."
+                className={`bg-transparent border-none outline-none text-xs w-full ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}
+                autoFocus
+              />
+              <button onClick={() => { setIsSearchOpen(false); setSearchTerm(''); }} className="ml-1 text-slate-400 hover:text-red-400 shrink-0"><X className="w-3 h-3" /></button>
+            </div>
+          ) : (
+            <button onClick={() => setIsSearchOpen(true)} className={`p-2 rounded-md transition-colors ml-1 ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Buscar">
+              <Search className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Centro: Alternador de Visualização */}
+        <div className="flex flex-1 justify-center min-w-[150px] mx-4">
+          <div className="flex gap-1">
+            <button onClick={() => setActiveTab('code')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${activeTab === 'code' ? (isDarkMode ? 'text-indigo-400 bg-indigo-500/10' : 'text-indigo-600 bg-indigo-50') : (isDarkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100')}`}>
+              <Code2 className="w-4 h-4" /> <span className="hidden sm:inline">Código</span>
+            </button>
+            <button onClick={() => setActiveTab('preview')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${activeTab === 'preview' ? (isDarkMode ? 'text-indigo-400 bg-indigo-500/10' : 'text-indigo-600 bg-indigo-50') : (isDarkMode ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100')}`}>
+              <Play className="w-4 h-4" /> <span className="hidden sm:inline">Prévia</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Direita: Ferramentas (Zoom, Snippets, Tema, Exportação) */}
+        <div className="flex items-center justify-end gap-1">
+          {/* Controles de Zoom */}
+          <button onClick={() => setFontSize(prev => Math.max(10, prev - 2))} className={`p-2 rounded-md ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Reduzir Fonte"><ZoomOut className="w-4 h-4" /></button>
+          <button onClick={() => setFontSize(prev => Math.min(24, prev + 2))} className={`p-2 rounded-md ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Aumentar Fonte"><ZoomIn className="w-4 h-4" /></button>
+          
+          <div className="w-px h-6 bg-slate-700/50 mx-1"></div> {/* Separador */}
+
+          {/* Snippets Menu */}
+          <div className="relative" ref={snippetsMenuRef}>
+            <button onClick={() => setIsSnippetsOpen(!isSnippetsOpen)} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-yellow-400' : 'hover:bg-slate-100 text-yellow-600'}`} title="Carregar Modelos">
+              <FolderOpen className="w-4 h-4" />
+            </button>
+            {isSnippetsOpen && (
+              <div className={`absolute right-0 mt-2 w-48 rounded-md shadow-xl z-50 border overflow-hidden ${isDarkMode ? 'bg-[#161b22] border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b ${isDarkMode ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>Modelos Base</div>
+                {snippets.map((snippet, idx) => (
+                  <button key={idx} onClick={() => loadSnippet(snippet.code)} className={`w-full text-left px-4 py-2 text-sm transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}>
+                    {snippet.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="relative" ref={downloadMenuRef}>
+            <button onClick={() => setIsDownloadMenuOpen(!isDownloadMenuOpen)} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-slate-100 text-slate-600'}`} title="Baixar Arquivo">
+              <Download className="w-4 h-4" />
+            </button>
+            {isDownloadMenuOpen && (
+              <div className={`absolute right-0 mt-2 w-32 rounded-md shadow-xl z-50 border overflow-hidden ${isDarkMode ? 'bg-[#161b22] border-slate-700' : 'bg-white border-slate-200'}`}>
+                <button onClick={() => downloadFile('html')} className={`w-full text-left px-4 py-2 text-sm transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}>.HTML</button>
+                <button onClick={() => downloadFile('txt')} className={`w-full text-left px-4 py-2 text-sm transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}>.TXT</button>
+              </div>
+            )}
+          </div>
+
+          <button onClick={copyToClipboard} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-slate-100'}`} title="Copiar Código">
+            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+          </button>
+          <button onClick={clearCode} className={`p-2 rounded-md transition-colors ${isDarkMode ? 'hover:bg-red-900/40 text-red-400' : 'hover:bg-red-100 text-red-600'}`} title="Limpar tudo">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+      </header>
+
+      {/* Área Principal */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        
+        {/* Painel do Editor */}
+        <div className={`w-full h-full flex flex-col transition-colors duration-300 ${isDarkMode ? 'bg-[#0d1117]' : 'bg-[#f6f8fa]'} ${activeTab === 'preview' ? 'hidden' : 'flex'}`}>
+          <div className="flex flex-1 overflow-hidden relative">
+            
+            {/* Coluna de Números das Linhas */}
+            <div ref={lineNumbersRef} className={`flex flex-col text-right pr-3 pl-2 py-4 select-none overflow-hidden font-mono transition-colors duration-300 border-r ${isDarkMode ? 'bg-[#0d1117] text-[#484f58] border-[#30363d]' : 'bg-[#f6f8fa] text-[#6e7781] border-[#d0d7de]'}`} style={{ minWidth: '48px', ...editorTextStyle }}>
+              {lines.map(num => (
+                <div key={num} style={{ height: editorTextStyle.lineHeight }}>{num}</div>
+              ))}
+            </div>
+
+            {/* Área Mágica de Texto do Código */}
+            <div className="relative flex-1 overflow-hidden bg-transparent">
+              
+              {/* Camada de Fundo (Coloração) */}
+              <pre
+                ref={preRef}
+                className={`absolute top-0 left-0 w-full h-full p-4 pl-3 font-mono whitespace-pre overflow-hidden pointer-events-none transition-colors duration-300 m-0 ${isDarkMode ? 'text-[#c9d1d9]' : 'text-[#1F2328]'}`}
+                style={editorTextStyle}
+                aria-hidden="true"
+              >
+                <code dangerouslySetInnerHTML={{ __html: getHighlightedText(code, isDarkMode, searchTerm) }} />
+              </pre>
+
+              {/* Textarea Invisível */}
+              <textarea
+                ref={textareaRef}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onScroll={handleScroll}
+                onKeyDown={handleKeyDown}
+                className="absolute top-0 left-0 w-full h-full p-4 pl-3 font-mono custom-scrollbar whitespace-pre overflow-auto resize-none outline-none m-0 bg-transparent selection:bg-indigo-500/30"
+                spellCheck="false"
+                placeholder="Cole seu código HTML, CSS e JS aqui..."
+                wrap="off"
+                style={{
+                  ...editorTextStyle,
+                  color: 'transparent',
+                  caretColor: isDarkMode ? '#e6edf3' : '#1F2328', 
+                }}
+              />
+            </div>
+
+          </div>
+        </div>
+
+        {/* Painel de Visualização (Usando debouncedCode para otimizar) */}
+        <div className={`w-full h-full flex flex-col ${activeTab === 'code' ? 'hidden' : 'flex'} ${isDarkMode ? 'bg-white' : 'bg-slate-50'}`}>
+          <iframe
+            srcDoc={debouncedCode}
+            title="Visualizador"
+            sandbox="allow-scripts allow-modals allow-same-origin"
+            className="flex-1 w-full h-full border-none bg-white"
+          />
+        </div>
+      </div>
+      
+      {/* Estilos Globais */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: ${isDarkMode ? '#0d1117' : '#f6f8fa'}; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${isDarkMode ? '#30363d' : '#d0d7de'}; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: ${isDarkMode ? '#484f58' : '#afb8c1'}; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+    </div>
+  );
+}
