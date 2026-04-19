@@ -85,20 +85,20 @@
       <div class="w-px h-6 bg-slate-200 dark:bg-slate-700/50 mx-1"></div>
 
       <!-- Menus (Snippets e Download) -->
-      <button onclick="toggleMenu('snippets-menu')" class="p-2 rounded-md transition-colors text-yellow-600 hover:bg-slate-100 dark:text-yellow-400 dark:hover:bg-slate-700" title="Carregar Modelos">
+      <button id="btn-snippets-menu" onclick="toggleMenu('snippets-menu')" class="p-2 rounded-md transition-colors text-yellow-600 hover:bg-slate-100 dark:text-yellow-400 dark:hover:bg-slate-700" title="Carregar Modelos">
         <i data-lucide="folder-open" class="w-4 h-4"></i>
       </button>
-      <div id="snippets-menu" class="hidden absolute top-10 right-20 mt-2 w-48 rounded-md shadow-xl z-50 border overflow-hidden bg-white border-slate-200 dark:bg-[#161b22] dark:border-slate-700">
+      <div id="snippets-menu" class="hidden fixed top-14 right-16 mt-1 w-48 rounded-md shadow-xl z-50 border overflow-hidden bg-white border-slate-200 dark:bg-[#161b22] dark:border-slate-700">
         <div class="px-4 py-2 text-xs font-bold uppercase tracking-wider border-b border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-400">Modelos Base</div>
         <button onclick="loadSnippet('Template Padrão')" class="block w-full text-left px-4 py-2 text-sm transition-colors text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Template Padrão</button>
         <button onclick="loadSnippet('Botão de Dobra')" class="block w-full text-left px-4 py-2 text-sm transition-colors text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Botão de Dobra</button>
         <button onclick="loadSnippet('Card do Tripulante')" class="block w-full text-left px-4 py-2 text-sm transition-colors text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">Card do Tripulante</button>
       </div>
 
-      <button onclick="toggleMenu('download-menu')" class="p-2 rounded-md transition-colors text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" title="Baixar Arquivo">
+      <button id="btn-download-menu" onclick="toggleMenu('download-menu')" class="p-2 rounded-md transition-colors text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700" title="Baixar Arquivo">
         <i data-lucide="download" class="w-4 h-4"></i>
       </button>
-      <div id="download-menu" class="hidden absolute top-10 right-10 mt-2 w-32 rounded-md shadow-xl z-50 border overflow-hidden bg-white border-slate-200 dark:bg-[#161b22] dark:border-slate-700">
+      <div id="download-menu" class="hidden fixed top-14 right-4 mt-1 w-32 rounded-md shadow-xl z-50 border overflow-hidden bg-white border-slate-200 dark:bg-[#161b22] dark:border-slate-700">
         <button onclick="downloadFile('html')" class="block w-full text-left px-4 py-2 text-sm transition-colors text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">.HTML</button>
         <button onclick="downloadFile('txt')" class="block w-full text-left px-4 py-2 text-sm transition-colors text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">.TXT</button>
       </div>
@@ -292,8 +292,12 @@
     }
 
     document.addEventListener('mousedown', (e) => {
-      if (!e.target.closest('#snippets-menu') && !e.target.closest('[onclick="toggleMenu(\'snippets-menu\')"]')) document.getElementById('snippets-menu').classList.add('hidden');
-      if (!e.target.closest('#download-menu') && !e.target.closest('[onclick="toggleMenu(\'download-menu\')"]')) document.getElementById('download-menu').classList.add('hidden');
+      if (!e.target.closest('#snippets-menu') && !e.target.closest('#btn-snippets-menu')) {
+        document.getElementById('snippets-menu').classList.add('hidden');
+      }
+      if (!e.target.closest('#download-menu') && !e.target.closest('#btn-download-menu')) {
+        document.getElementById('download-menu').classList.add('hidden');
+      }
     });
 
     function execCmd(cmd) { editor.focus(); document.execCommand(cmd); }
@@ -315,11 +319,16 @@
       updateSystem();
     }
 
+    // --- NOVO MOTOR DE EXTRAÇÃO DE ARQUIVOS ---
     function downloadFile(ext) {
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([editor.value], { type: 'text/plain' }));
+      // Usando uma "Data URI" que dribla bloqueios de Blob na memória
+      a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(editor.value);
       a.download = `codigo-estelar.${ext}`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       toggleMenu('download-menu');
     }
 
